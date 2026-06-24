@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+coverage
+*.log
+datasets/raw
+datasets/processed
+.docker-data
+package-lock.json

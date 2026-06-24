@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.local
+*.log
+coverage/
+.eslintcache
+
+# Local uploaded files (keep the folder, ignore contents)
+uploads/*
+!uploads/.gitkeep

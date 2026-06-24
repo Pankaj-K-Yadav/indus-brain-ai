@@ -1,0 +1,84 @@
+# INDUS-BRAIN AI — local development topology
+# Usage: docker compose up -d
+# Services: mongo (optional local), chromadb (vector store), backend (API), frontend (web)
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: indus-brain-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-example}
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - indus-brain
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: indus-brain-chroma
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    volumes:
+      - chroma-data:/data
+    environment:
+      IS_PERSISTENT: 'TRUE'
+      ANONYMIZED_TELEMETRY: 'FALSE'
+    networks:
+      - indus-brain
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/api/v2/heartbeat']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: indus-brain-backend
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      CHROMA_URL: http://chromadb:8000
+    ports:
+      - '4000:4000'
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    networks:
+      - indus-brain
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: indus-brain-frontend
+    restart: unless-stopped
+    ports:
+      - '5173:80'
+    depends_on:
+      - backend
+    networks:
+      - indus-brain
+
+networks:
+  indus-brain:
+    driver: bridge
+
+volumes:
+  mongo-data:
+  chroma-data:
