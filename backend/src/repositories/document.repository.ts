@@ -23,12 +23,24 @@ class DocumentRepository {
     return DocumentModel.findById(id).exec();
   }
 
+  updateById(id: string, update: Partial<IDocument>): Promise<DocumentDoc | null> {
+    return DocumentModel.findByIdAndUpdate(id, update, { new: true }).exec();
+  }
+
   deleteById(id: string): Promise<DocumentDoc | null> {
     return DocumentModel.findByIdAndDelete(id).exec();
   }
 
   count(filter: FilterQuery<IDocument> = {}): Promise<number> {
     return DocumentModel.countDocuments(filter).exec();
+  }
+
+  /** Sum of chunkCount across all documents (for analytics). */
+  async totalChunks(): Promise<number> {
+    const [row] = await DocumentModel.aggregate<{ total: number }>([
+      { $group: { _id: null, total: { $sum: '$chunkCount' } } },
+    ]).exec();
+    return row?.total ?? 0;
   }
 }
 

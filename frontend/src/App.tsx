@@ -1,17 +1,20 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AnalyticsDashboardPage } from '@/pages/AnalyticsDashboardPage';
 import { DocumentsPage } from '@/pages/DocumentsPage';
+import { KnowledgeAssistantPage } from '@/pages/KnowledgeAssistantPage';
 
 /**
- * Application root. Routes the enterprise dashboard. Documents is the first
- * business feature; additional routes are added as features land.
+ * Application root. Routes the enterprise dashboard: an analytics overview,
+ * document management, and the AI knowledge assistant.
  */
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/documents" replace />} />
+        <Route path="/" element={<AnalyticsDashboardPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
-        <Route path="*" element={<Navigate to="/documents" replace />} />
+        <Route path="/knowledge" element={<KnowledgeAssistantPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

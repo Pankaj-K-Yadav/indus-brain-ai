@@ -1,6 +1,62 @@
 # Architecture — INDUS-BRAIN AI
 
-This document describes the technical foundation of the platform. No business logic is included here yet; this is the structural blueprint.
+This document describes the platform architecture across Phase 1 (foundation +
+document management) and Phase 2 (the Industrial Knowledge Intelligence engine).
+
+## Phase 2 — Knowledge Intelligence Engine
+
+### Ingestion / indexing pipeline (on upload)
+
+```
+PDF / DOCX
+   │  multer (local uploads/)
+   ▼
+documentProcessor.service   extract text per page (pdfjs-dist / mammoth)
+   │                        + intelligent overlapping chunks (page refs kept)
+   ▼
+embedding.service           Gemini embeddings (batched + retried + logged)
+   ▼
+vector.repository           upsert chunk vectors -> ChromaDB (cosine)
+   ▼
+document.repository         status: processed, indexed=true, chunkCount, pageCount
+```
+
+Extraction + chunking run locally and always succeed; embedding + indexing are
+best-effort, so an upload never fails when Gemini/ChromaDB are unavailable (the
+document is stored and marked `processed` / `indexed=false`).
+
+### Retrieval / RAG flow (POST /api/knowledge/search)
+
+```
+query
+  ▼ embedding.service.embedQuery            (Gemini RETRIEVAL_QUERY)
+  ▼ vector.repository.query                 (ChromaDB top-K, cosine)
+  ▼ filter by RAG_MIN_SIMILARITY            (refuse early if nothing relevant)
+  ▼ knowledge.service builds grounded prompt (cite [n], refuse if unsupported)
+  ▼ Gemini generateContent                  (gemini-2.5-flash)
+  ▼ { answer, confidence, answered, sources[], retrievedChunks[] }
+```
+
+Anti-hallucination: the model answers ONLY from retrieved context, must cite
+source excerpts, and returns `INSUFFICIENT_CONTEXT` (mapped to `answered:false`,
+low confidence) when the documents don't support an answer.
+
+### New modules
+
+| Layer | File |
+| ----- | ---- |
+| Processing | `services/documentProcessor.service.ts`, `utils/chunking.ts` |
+| Embeddings | `services/embedding.service.ts` (`utils/retry.ts`) |
+| Vector store | `repositories/vector.repository.ts` |
+| Knowledge / RAG | `services/knowledge.service.ts`, `controllers/knowledge.controller.ts`, `routes/knowledge.routes.ts` |
+| Analytics | `services/analytics.service.ts`, `controllers/analytics.controller.ts`, `routes/analytics.routes.ts`, `models/searchLog.model.ts` |
+| Industrial assistants | `general` / `sop` / `maintenance` / `incident` / `safety` (knowledge.service) |
+
+---
+
+## Phase 1 foundation
+
+This section describes the structural foundation of the platform.
 
 ## 1. System overview
 

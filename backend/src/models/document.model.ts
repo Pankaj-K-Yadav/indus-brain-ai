@@ -29,6 +29,12 @@ export interface IDocument {
   uploadDate: Date;
   category: string;
   status: DocumentStatus;
+  // Phase 2 — knowledge pipeline metadata
+  pageCount: number;
+  chunkCount: number;
+  indexed: boolean;
+  contentText?: string;
+  processingError?: string;
 }
 
 const documentSchema = new Schema<IDocument>(
@@ -41,6 +47,12 @@ const documentSchema = new Schema<IDocument>(
     uploadDate: { type: Date, required: true, default: Date.now },
     category: { type: String, required: true, trim: true, default: 'general' },
     status: { type: String, required: true, enum: [...DOCUMENT_STATUSES], default: 'uploaded' },
+    pageCount: { type: Number, required: true, default: 0 },
+    chunkCount: { type: Number, required: true, default: 0 },
+    indexed: { type: Boolean, required: true, default: false },
+    // Full extracted text; excluded from queries by default to keep payloads lean.
+    contentText: { type: String, select: false },
+    processingError: { type: String },
   },
   { timestamps: true, versionKey: false },
 );
@@ -63,6 +75,10 @@ export interface DocumentDTO {
   uploadDate: string;
   category: string;
   status: DocumentStatus;
+  pageCount: number;
+  chunkCount: number;
+  indexed: boolean;
+  processingError?: string;
 }
 
 export function toDocumentDTO(doc: DocumentDoc): DocumentDTO {
@@ -76,5 +92,9 @@ export function toDocumentDTO(doc: DocumentDoc): DocumentDTO {
     uploadDate: doc.uploadDate.toISOString(),
     category: doc.category,
     status: doc.status,
+    pageCount: doc.pageCount,
+    chunkCount: doc.chunkCount,
+    indexed: doc.indexed,
+    ...(doc.processingError ? { processingError: doc.processingError } : {}),
   };
 }

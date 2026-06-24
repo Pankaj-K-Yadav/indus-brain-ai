@@ -23,5 +23,22 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  {
+    // Node test/utility scripts (plain ESM, not part of the TS build).
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        Buffer: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        FormData: 'readonly',
+        Blob: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
+    },
+  },
   prettier,
 );

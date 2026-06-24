@@ -15,7 +15,8 @@
     "start": "node dist/server.js",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node tests/e2e.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -25,8 +26,10 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "helmet": "^8.0.0",
+    "mammoth": "^1.8.0",
     "mongoose": "^8.8.3",
     "multer": "^1.4.5-lts.1",
+    "pdfjs-dist": "^6.0.227",
     "winston": "^3.17.0",
     "zod": "^3.23.8"
   },
@@ -39,6 +42,7 @@
     "@types/node": "^22.10.1",
     "eslint": "^9.16.0",
     "eslint-config-prettier": "^9.1.0",
+    "pdf-lib": "^1.17.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.16.0"

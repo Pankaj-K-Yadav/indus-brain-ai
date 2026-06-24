@@ -10,3 +10,6 @@ coverage/
 # Local uploaded files (keep the folder, ignore contents)
 uploads/*
 !uploads/.gitkeep
+
+# Local ChromaDB server data (dev only)
+.chroma-data/
