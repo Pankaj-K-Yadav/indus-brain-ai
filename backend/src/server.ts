@@ -9,6 +9,7 @@ import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { env } from './config/index.js';
 import { connectMongo, disconnectMongo } from './integrations/index.js';
+import { terminateOcrWorker } from './services/ocr.service.js';
 import { logger } from './utils/logger.js';
 
 function registerProcessHandlers(server: Server): void {
@@ -20,8 +21,14 @@ function registerProcessHandlers(server: Server): void {
     logger.info(`Received ${signal}, shutting down gracefully`);
 
     server.close(() => {
-      void disconnectMongo()
-        .catch((error) => logger.error('Error during MongoDB disconnect', { error: String(error) }))
+      void Promise.allSettled([disconnectMongo(), terminateOcrWorker()])
+        .then((results) => {
+          for (const r of results) {
+            if (r.status === 'rejected') {
+              logger.error('Error during shutdown cleanup', { error: String(r.reason) });
+            }
+          }
+        })
         .finally(() => process.exit(0));
     });
 

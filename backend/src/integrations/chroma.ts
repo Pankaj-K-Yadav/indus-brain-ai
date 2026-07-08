@@ -16,6 +16,7 @@ export function getChromaClient(): ChromaClient {
   return client;
 }
 
+/** Liveness check for the vector store (used by health checks / diagnostics). */
 export async function pingChroma(): Promise<boolean> {
   try {
     await getChromaClient().heartbeat();

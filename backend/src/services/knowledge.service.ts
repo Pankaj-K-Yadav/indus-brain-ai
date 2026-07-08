@@ -10,10 +10,16 @@
 import { env } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
+import { truncate } from '../utils/text.js';
 import { getGenerativeModel } from '../integrations/gemini.js';
 import { embeddingService } from './embedding.service.js';
 import { vectorRepository, type VectorMatch } from '../repositories/vector.repository.js';
 import { searchLogRepository } from '../repositories/searchLog.repository.js';
+import {
+  knowledgeGraphService,
+  type RelatedDocument,
+  type RelatedEntity,
+} from './knowledgeGraph.service.js';
 import type { AssistantType } from '../models/searchLog.model.js';
 
 const INSUFFICIENT = 'INSUFFICIENT_CONTEXT';
@@ -68,6 +74,11 @@ export interface KnowledgeAnswer {
   assistant: AssistantType;
   sources: KnowledgeSource[];
   retrievedChunks: RetrievedChunk[];
+  // Knowledge-graph enrichment (grounded in the source documents).
+  relatedDocuments: RelatedDocument[];
+  relatedEquipment: string[];
+  relatedEntities: RelatedEntity[];
+  followUpQuestions: string[];
 }
 
 export interface KnowledgeQuery {
@@ -77,10 +88,6 @@ export interface KnowledgeQuery {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function truncate(text: string, max = 400): string {
-  return text.length <= max ? text : `${text.slice(0, max).trimEnd()}…`;
 }
 
 function buildSources(matches: VectorMatch[]): KnowledgeSource[] {
@@ -119,7 +126,12 @@ Answer the QUESTION using ONLY the numbered CONTEXT excerpts below. Follow these
 - Use only information present in the context. Do NOT use outside knowledge or assumptions.
 - Cite the excerpts you use inline, e.g. [1], [2].
 - If the context does not contain enough information to answer, reply with exactly "${INSUFFICIENT}" on the first line, followed by one sentence describing what is missing.
-- Be concise and practical for an industrial operator. Preserve exact procedure steps, values, and units.
+
+Formatting:
+- Start with a one-sentence direct answer.
+- For procedures, use a numbered list ("1.", "2.", …) with one action per line.
+- For specifications or lists, use "- " bullet points.
+- Preserve exact values, units, and identifiers. Keep it concise and practical for an operator.
 
 CONTEXT:
 ${context}
@@ -135,7 +147,7 @@ class KnowledgeService {
     const config = ASSISTANTS[assistant];
     const query = input.query.trim();
 
-    logger.info('Knowledge search received', { assistant, query });
+    logger.info('Knowledge search received', { assistant, query: truncate(query, 120) });
 
     // 1. Embed the query.
     const queryEmbedding = await embeddingService.embedQuery(query);
@@ -144,62 +156,126 @@ class KnowledgeService {
     const filter = config.category ? { category: config.category } : undefined;
     const matches = await vectorRepository.query(queryEmbedding, env.RAG_TOP_K, filter);
 
-    // 3. Keep only sufficiently similar chunks.
+    // 3. Keep only sufficiently similar chunks. No evidence -> refuse.
     const relevant = matches.filter((m) => m.score >= env.RAG_MIN_SIMILARITY);
-
     if (relevant.length === 0) {
-      const answer: KnowledgeAnswer = {
-        answer:
-          'I could not find this information in the indexed documents. Please upload the relevant manual or rephrase your question.',
-        confidence: 0,
-        answered: false,
+      return this.refuse(
+        query,
         assistant,
-        sources: [],
-        retrievedChunks: [],
-      };
-      await this.logSearch(query, assistant, answer);
-      logger.warn('Knowledge search: no relevant chunks', { query, topScore: matches[0]?.score ?? 0 });
-      return answer;
+        'I could not find this in the indexed documents. Please upload the relevant manual or rephrase your question.',
+        0,
+        'no relevant chunks',
+      );
     }
 
-    // 4. Grounded generation.
+    // 4. Retrieval confidence (mean of the top matches). Below the floor we
+    //    refuse politely WITHOUT calling the LLM — weak grounding => no answer.
+    const topScores = relevant.slice(0, 3).map((m) => m.score);
+    const retrievalConfidence = round2(topScores.reduce((s, v) => s + v, 0) / topScores.length);
+    if (retrievalConfidence < env.RAG_MIN_CONFIDENCE) {
+      return this.refuse(
+        query,
+        assistant,
+        `I don't have a confident, grounded answer for this in the current documents (confidence ${Math.round(
+          retrievalConfidence * 100,
+        )}%). Try rephrasing, or upload a more specific document.`,
+        retrievalConfidence,
+        'below confidence threshold',
+      );
+    }
+
+    // 5. Grounded generation.
     const prompt = buildPrompt(config.persona, query, relevant);
     const model = getGenerativeModel();
     const result = await withRetry(() => model.generateContent(prompt), { label: 'rag-generate' });
     const raw = result.response.text().trim();
 
-    const answered = !raw.startsWith(INSUFFICIENT);
-    const cleanedAnswer = answered ? raw : raw.replace(INSUFFICIENT, '').trim() || 'Insufficient information in the documents to answer this.';
+    // The model self-refuses when the context doesn't support an answer.
+    if (raw.startsWith(INSUFFICIENT)) {
+      const note = raw.replace(INSUFFICIENT, '').trim();
+      return this.refuse(
+        query,
+        assistant,
+        note || 'The documents do not contain enough information to answer this reliably.',
+        Math.min(0.15, retrievalConfidence),
+        'model reported insufficient context',
+      );
+    }
 
-    // 5. Confidence from retrieval similarity, dampened if the model refused.
-    const topScores = relevant.slice(0, 3).map((m) => m.score);
-    const avgTop = topScores.reduce((s, v) => s + v, 0) / topScores.length;
-    const confidence = answered ? round2(avgTop) : Math.min(0.15, round2(avgTop));
+    // 6. Build the grounded, enriched answer.
+    const sources = buildSources(relevant);
+    const context = await this.safeGraphContext(sources.map((s) => s.documentId));
 
     const answer: KnowledgeAnswer = {
-      answer: cleanedAnswer,
-      confidence,
-      answered,
+      answer: raw,
+      confidence: retrievalConfidence,
+      answered: true,
       assistant,
-      sources: buildSources(relevant),
+      sources,
       retrievedChunks: relevant.map((m) => ({
         chunkId: m.chunkId,
-        text: truncate(m.text),
+        text: truncate(m.text, 400),
         score: round2(m.score),
         pageNumber: m.pageNumber,
         title: m.title,
       })),
+      relatedDocuments: context.relatedDocuments,
+      relatedEquipment: context.relatedEquipment,
+      relatedEntities: context.relatedEntities,
+      followUpQuestions: context.followUpQuestions,
     };
 
     await this.logSearch(query, assistant, answer);
     logger.info('Knowledge answer generated', {
       assistant,
-      answered,
-      confidence,
+      confidence: answer.confidence,
       sources: answer.sources.length,
       chunks: answer.retrievedChunks.length,
+      relatedDocuments: answer.relatedDocuments.length,
+      relatedEquipment: answer.relatedEquipment.length,
+      followUps: answer.followUpQuestions.length,
     });
     return answer;
+  }
+
+  /** Build + log a polite refusal with all (empty) enrichment fields. */
+  private async refuse(
+    query: string,
+    assistant: AssistantType,
+    message: string,
+    confidence: number,
+    reason: string,
+  ): Promise<KnowledgeAnswer> {
+    const answer: KnowledgeAnswer = {
+      answer: message,
+      confidence,
+      answered: false,
+      assistant,
+      sources: [],
+      retrievedChunks: [],
+      relatedDocuments: [],
+      relatedEquipment: [],
+      relatedEntities: [],
+      followUpQuestions: [],
+    };
+    await this.logSearch(query, assistant, answer);
+    logger.warn('Knowledge search refused', {
+      query: truncate(query, 120),
+      assistant,
+      reason,
+      confidence,
+    });
+    return answer;
+  }
+
+  /** Knowledge-graph enrichment; best-effort so it never breaks an answer. */
+  private async safeGraphContext(documentIds: string[]): ReturnType<typeof knowledgeGraphService.getContext> {
+    try {
+      return await knowledgeGraphService.getContext(documentIds);
+    } catch (error) {
+      logger.warn('Graph enrichment failed', { error: String(error) });
+      return { relatedDocuments: [], relatedEquipment: [], relatedEntities: [], followUpQuestions: [] };
+    }
   }
 
   private async logSearch(
@@ -214,6 +290,7 @@ class KnowledgeService {
         confidence: answer.confidence,
         sourceCount: answer.sources.length,
         answered: answer.answered,
+        sources: answer.sources.map((s) => ({ documentId: s.documentId, title: s.title })),
       });
     } catch (error) {
       logger.warn('Failed to persist search log', { error: String(error) });

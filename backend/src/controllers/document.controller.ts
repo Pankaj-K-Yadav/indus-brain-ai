@@ -68,3 +68,9 @@ export const deleteDocument = asyncHandler(async (req: Request, res: Response) =
   await documentService.deleteDocument(id);
   ok(res, 200, { id, deleted: true });
 });
+
+export const reindexDocument = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = parseOrThrow(idParamSchema, req.params);
+  const document = await documentService.reindexDocument(id);
+  ok(res, 200, document);
+});

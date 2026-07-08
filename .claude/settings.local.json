@@ -11,7 +11,10 @@
       "PowerShell(npm run lint 2>&1 | Select-Object -Last 12; Write-Output \"==== BACKEND DIST ====\"; Get-ChildItem -Recurse backend/dist -File | Select-Object -ExpandProperty Name; Write-Output \"==== FRONTEND DIST ====\"; Get-ChildItem -Recurse frontend/dist -File | ForEach-Object { $_.FullName.Replace\\(\\(Resolve-Path frontend/dist\\).Path + '\\\\',''\\) })",
       "PowerShell(npm run lint 2>&1)",
       "PowerShell(docker --version 2>&1)",
-      "PowerShell(docker compose version 2>&1)"
+      "PowerShell(docker compose version 2>&1)",
+      "Bash(cd \"C:/Users/panka/Desktop/indus-brain-ai\")",
+      "Bash(echo \"=== 1st GET: capture status + ETag ===\")",
+      "Bash(curl -s -D - -o /dev/null http://localhost:4000/api/documents)"
     ]
   }
 }

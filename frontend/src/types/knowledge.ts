@@ -19,6 +19,16 @@ export interface RetrievedChunk {
   title: string;
 }
 
+export interface RelatedDocument {
+  documentId: string;
+  title: string;
+}
+
+export interface RelatedEntity {
+  type: string;
+  name: string;
+}
+
 export interface KnowledgeAnswer {
   answer: string;
   confidence: number;
@@ -26,6 +36,10 @@ export interface KnowledgeAnswer {
   assistant: AssistantType;
   sources: KnowledgeSource[];
   retrievedChunks: RetrievedChunk[];
+  relatedDocuments: RelatedDocument[];
+  relatedEquipment: string[];
+  relatedEntities: RelatedEntity[];
+  followUpQuestions: string[];
 }
 
 export interface KnowledgeSearchInput {

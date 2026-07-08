@@ -17,5 +17,3 @@ export interface ApiError {
     details?: unknown;
   };
 }
-
-export type ApiResponse<T> = ApiSuccess<T> | ApiError;

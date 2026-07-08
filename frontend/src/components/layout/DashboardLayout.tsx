@@ -1,71 +1,64 @@
-import type { ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
-import { FileText, LayoutDashboard, Brain, Sparkles } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { env } from '@/lib/env';
+import { Sidebar } from './Sidebar';
+import { Topbar } from './Topbar';
 
-interface NavItem {
-  label: string;
-  to: string;
-  icon: ReactNode;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Overview', to: '/', icon: <LayoutDashboard className="h-4 w-4" /> },
-  { label: 'Documents', to: '/documents', icon: <FileText className="h-4 w-4" /> },
-  { label: 'Knowledge Assistant', to: '/knowledge', icon: <Sparkles className="h-4 w-4" /> },
-];
+const COLLAPSE_KEY = 'indus-brain-sidebar-collapsed';
 
 interface DashboardLayoutProps {
   title: string;
-  subtitle?: string;
+  subtitle?: string | undefined;
   actions?: ReactNode;
   children: ReactNode;
 }
 
 export function DashboardLayout({ title, subtitle, actions, children }: DashboardLayoutProps) {
+  const [collapsed, setCollapsed] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.localStorage.getItem(COLLAPSE_KEY) === '1',
+  );
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+  }, [collapsed]);
+
   return (
-    <div className="flex min-h-screen bg-muted/30 text-foreground">
-      <aside className="hidden w-64 shrink-0 flex-col border-r bg-card md:flex">
-        <div className="flex h-16 items-center gap-2 border-b px-6">
-          <Brain className="h-6 w-6 text-primary" />
-          <span className="text-sm font-bold tracking-tight">{env.appName}</span>
-        </div>
-        <nav className="flex-1 space-y-1 p-3">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                cn(
-                  'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                )
-              }
-            >
-              {item.icon}
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t p-4 text-xs text-muted-foreground">
-          Industrial Knowledge Intelligence
-        </div>
+    <div className="min-h-screen bg-background">
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 hidden border-r transition-[width] duration-300 md:block',
+          collapsed ? 'w-[76px]' : 'w-64',
+        )}
+      >
+        <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b bg-card px-6">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-            {subtitle ? <p className="truncate text-sm text-muted-foreground">{subtitle}</p> : null}
-          </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
-        </header>
+      {/* Mobile drawer */}
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="animate-in-fade absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="animate-in-up absolute inset-y-0 left-0 w-64 border-r shadow-popover">
+            <Sidebar collapsed={false} onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      ) : null}
 
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+      {/* Content column */}
+      <div
+        className={cn(
+          'flex min-h-screen flex-col transition-[padding] duration-300',
+          collapsed ? 'md:pl-[76px]' : 'md:pl-64',
+        )}
+      >
+        <Topbar title={title} subtitle={subtitle} onMenuClick={() => setMobileOpen(true)} actions={actions} />
+        <main className="app-backdrop flex-1 p-4 md:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-7xl animate-fade-in">{children}</div>
+        </main>
       </div>
     </div>
   );

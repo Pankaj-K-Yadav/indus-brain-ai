@@ -1,7 +1,68 @@
 # Architecture — INDUS-BRAIN AI
 
-This document describes the platform architecture across Phase 1 (foundation +
-document management) and Phase 2 (the Industrial Knowledge Intelligence engine).
+INDUS-BRAIN AI turns industrial documents into an operational knowledge layer: a
+clean-architecture Express/TypeScript backend over **MongoDB Atlas** (system of
+record), **ChromaDB** (vector RAG), and the **Gemini API** (embeddings +
+generation), with a React + Vite + Tailwind frontend.
+
+## System context
+
+```mermaid
+flowchart TB
+  FE["React + Vite + TS + Tailwind<br/>(code-split routes)"]
+  subgraph Server["Backend — Express (clean architecture)"]
+    MW["Middleware: helmet · CORS · rate-limit · logger · errors"]
+    R["Routes"] --> C["Controllers (Zod validation)"] --> S["Services (agents)"] --> Repo["Repositories"]
+    Repo --> M["Mongoose Models"]
+    S --> INT["Integrations"]
+  end
+  MDB[("MongoDB Atlas")]
+  CDB[("ChromaDB")]
+  GEM["Gemini API"]
+
+  FE -- "HTTPS / JSON" --> MW --> R
+  M --> MDB
+  INT --> CDB
+  INT --> GEM
+```
+
+## Feature modules (all reuse the same RAG primitives)
+
+```mermaid
+flowchart LR
+  EMB["embeddingService"]
+  VEC["vectorRepository (ChromaDB)"]
+  GEN["Gemini generation (JSON mode)"]
+  KG["knowledgeGraphService"]
+  DOC["Documents + Ingestion"]
+  ASK["Knowledge Assistant"]
+  RCA["Root Cause Analysis"]
+  CMP["Compliance Intelligence"]
+  LES["Lessons Learned"]
+
+  DOC --> EMB --> VEC
+  DOC --> KG
+  ASK --> EMB & VEC & GEN & KG
+  RCA --> EMB & VEC & GEN & KG
+  CMP --> EMB & VEC & GEN
+  LES --> EMB & VEC & GEN & KG
+```
+
+| Module | Endpoint(s) | What it does |
+|--------|-------------|--------------|
+| Documents / Ingestion | `POST/GET/DELETE /api/documents`, `…/reindex` | Upload → extract (OCR fallback) → chunk → embed → index; honest status |
+| Knowledge Assistant | `POST /api/knowledge/search` | Grounded RAG answer with citations, confidence, KG enrichment |
+| Root Cause Analysis | `POST /api/rca/analyze` | Correlated root cause + actions + preventive maintenance, cited |
+| Compliance Intelligence | `POST /api/compliance/analyze` | SOP vs. regulation: missing/conflicts/gaps, score, citations |
+| Lessons Learned | `GET /api/lessons/overview`, `POST /api/lessons/summary` | Failure dashboard + grounded AI summary |
+| Knowledge Graph | `GET /api/graph/*` | Mongo-backed entities & relationships (no Neo4j) |
+| Analytics | `GET /api/analytics/overview` | Corpus / index / graph metrics |
+
+Grounding & safety: every AI answer is built **only** from retrieved chunks and
+cites `[n]`; below a similarity/confidence floor the system refuses **without**
+calling the LLM; provider failures return HTTP 503, never fabricated output.
+
+---
 
 ## Phase 2 — Knowledge Intelligence Engine
 

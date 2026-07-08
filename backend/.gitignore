@@ -13,3 +13,6 @@ uploads/*
 
 # Local ChromaDB server data (dev only)
 .chroma-data/
+
+# Tesseract OCR training data (downloaded/used at runtime, not source)
+*.traineddata

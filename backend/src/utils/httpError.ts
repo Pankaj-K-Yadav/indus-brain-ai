@@ -23,8 +23,4 @@ export class HttpError extends Error {
   static notFound(message = 'Not Found', details?: unknown): HttpError {
     return new HttpError(404, message, details);
   }
-
-  static internal(message = 'Internal Server Error', details?: unknown): HttpError {
-    return new HttpError(500, message, details);
-  }
 }

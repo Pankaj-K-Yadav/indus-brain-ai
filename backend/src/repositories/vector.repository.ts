@@ -128,6 +128,44 @@ class VectorRepository {
     });
   }
 
+  /**
+   * Fetch all stored chunks for a single document (no similarity ranking),
+   * ordered by chunk index. Used to assess a regulation's full requirement set.
+   */
+  async getByDocument(documentId: string, limit: number): Promise<VectorMatch[]> {
+    const collection = await this.getCollection();
+    const result = await withRetry(() => collection.get({ where: { documentId }, limit }), {
+      label: 'chroma-get',
+      retries: 2,
+    });
+
+    const ids = result.ids ?? [];
+    const documents = result.documents ?? [];
+    const metadatas = result.metadatas ?? [];
+
+    const chunks = ids.map((id, i) => {
+      const meta = (metadatas[i] ?? {}) as Record<string, unknown>;
+      const pageValue = meta.page;
+      return {
+        chunkId: id,
+        documentId,
+        text: documents[i] ?? '',
+        score: 1,
+        pageNumber: typeof pageValue === 'number' ? pageValue : null,
+        title: typeof meta.title === 'string' ? meta.title : 'Untitled',
+        originalName: typeof meta.originalName === 'string' ? meta.originalName : '',
+        category: typeof meta.category === 'string' ? meta.category : 'general',
+      };
+    });
+
+    // chunkId is `${documentId}:${chunkIndex}` — restore document order.
+    return chunks.sort((a, b) => {
+      const ai = Number(a.chunkId.split(':').pop());
+      const bi = Number(b.chunkId.split(':').pop());
+      return ai - bi;
+    });
+  }
+
   /** Remove all chunks belonging to a document. */
   async deleteByDocument(documentId: string): Promise<void> {
     const collection = await this.getCollection();

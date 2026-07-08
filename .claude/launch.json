@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "-w", "frontend", "--", "--port", "4200", "--strictPort"],
+      "port": 4200,
+      "autoPort": false
+    }
+  ]
+}

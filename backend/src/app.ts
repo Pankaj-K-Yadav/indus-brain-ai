@@ -8,7 +8,13 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { corsOrigins } from './config/index.js';
 import apiRoutes from './routes/index.js';
-import { errorHandler, notFound, requestLogger } from './middleware/index.js';
+import {
+  errorHandler,
+  notFound,
+  requestLogger,
+  apiRateLimiter,
+  aiRateLimiter,
+} from './middleware/index.js';
 
 export function createApp(): Application {
   const app = express();
@@ -29,6 +35,11 @@ export function createApp(): Application {
 
   // Structured request logging
   app.use(requestLogger);
+
+  // Rate limiting: a broad cap on the whole API, tighter on the AI endpoints
+  // that consume Gemini quota. Registered before the routes they protect.
+  app.use('/api', apiRateLimiter);
+  app.use(['/api/knowledge', '/api/rca', '/api/compliance', '/api/lessons'], aiRateLimiter);
 
   // API surface — exposes GET /api/health
   app.use('/api', apiRoutes);

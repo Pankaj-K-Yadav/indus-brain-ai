@@ -31,10 +31,6 @@ export async function disconnectMongo(): Promise<void> {
   await mongoose.disconnect();
 }
 
-export function isMongoConnected(): boolean {
-  return mongoose.connection.readyState === 1;
-}
-
 /** Human-readable connection status for the health endpoint. */
 export function getMongoStatus(): 'connected' | 'disconnected' {
   return mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';

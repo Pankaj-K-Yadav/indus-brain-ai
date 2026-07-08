@@ -6,6 +6,23 @@ INDUS-BRAIN AI ingests industrial documents (manuals, SOPs, maintenance logs, in
 
 ---
 
+## ✨ Features
+
+- **📄 Document Management & Ingestion** — upload PDF/DOCX → extract → **OCR fallback for scanned PDFs** → chunk → embed → index. Status is honest (`processed` only after vectors are indexed).
+- **💬 Knowledge Assistant (RAG)** — grounded answers with **citations**, confidence scoring, knowledge-graph enrichment, and follow-ups. Refuses instead of hallucinating.
+- **🔬 Root Cause Analysis** — correlates evidence across maintenance/incident/inspection/manual docs → likely cause, actions, preventive maintenance — all cited.
+- **🛡️ Compliance Intelligence** — compares an SOP against regulations → missing sections, conflicts, gaps, a computed compliance score, and recommendations.
+- **🎓 Lessons Learned** — failure analytics dashboard (repeated components, frequent entities, trends) + a grounded AI summary.
+- **🕸️ Knowledge Graph** — entities & relationships extracted into **MongoDB (no Neo4j)**.
+- **📊 Analytics** — corpus, indexing, and graph metrics.
+
+Everything AI-generated is **grounded and cited**; the system refuses below a
+confidence floor and degrades gracefully (HTTP 503) when the model is unavailable.
+
+> 📚 **Docs:** [Architecture](docs/ARCHITECTURE.md) · [Project Flow](docs/PROJECT_FLOW.md) · [Setup](docs/SETUP.md) · [Deployment](docs/DEPLOYMENT.md) · [Demo Script](docs/DEMO_SCRIPT.md) · [Production Audit](docs/PRODUCTION_AUDIT.md)
+
+---
+
 ## 📐 Architecture
 
 ```
@@ -94,7 +111,13 @@ npm run dev
 
 - Frontend → http://localhost:5173
 - Backend  → http://localhost:4000
-- Health   → http://localhost:4000/health
+- Health   → http://localhost:4000/api/health
+
+> **No Docker?** You can run ChromaDB directly with Python instead of `npm run docker:up`:
+> ```bash
+> pip install chromadb
+> python -c "from chromadb.cli.cli import app; app()" run --path ./.chroma-data --port 8000
+> ```
 
 ---
 
@@ -114,9 +137,33 @@ npm run dev
 
 ---
 
+## 🌐 API endpoints
+
+All responses use a consistent envelope: `{ success: true, data }` or
+`{ success: false, error: { message, statusCode } }`. The API is rate-limited
+(broad + a tighter tier on AI endpoints).
+
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| `GET` | `/api/health` | Service + MongoDB status |
+| `POST` | `/api/documents` | Upload a PDF/DOCX |
+| `GET` | `/api/documents` | List documents (filter: search/category/status) |
+| `GET` | `/api/documents/:id` | Get one document |
+| `DELETE` | `/api/documents/:id` | Delete (file + vectors + graph) |
+| `POST` | `/api/documents/:id/reindex` | Re-embed & re-index |
+| `POST` | `/api/knowledge/search` | Grounded RAG answer |
+| `POST` | `/api/rca/analyze` | Root cause analysis |
+| `POST` | `/api/compliance/analyze` | SOP vs. regulation analysis |
+| `GET` | `/api/lessons/overview` | Failure analytics dashboard |
+| `POST` | `/api/lessons/summary` | Grounded lessons-learned summary |
+| `GET` | `/api/analytics/overview` | Corpus / index / graph metrics |
+| `GET` | `/api/graph/*` | Knowledge-graph entities & relationships |
+
+---
+
 ## 🔐 Environment variables
 
-See [`backend/.env.example`](backend/.env.example) and [`frontend/.env.example`](frontend/.env.example) for the full list with descriptions.
+See [`backend/.env.example`](backend/.env.example) and [`frontend/.env.example`](frontend/.env.example) for the full list with descriptions. Never commit `.env`.
 
 ---
 

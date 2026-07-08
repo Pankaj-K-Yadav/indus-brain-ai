@@ -28,6 +28,36 @@ const envSchema = z.object({
   EMBEDDING_BATCH_SIZE: z.coerce.number().int().positive().default(50),
   RAG_TOP_K: z.coerce.number().int().positive().default(6),
   RAG_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.4),
+  // Minimum answer confidence; below this the assistant politely refuses.
+  RAG_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.45),
+
+  // Root Cause Analysis agent — retrieves broader evidence to correlate across
+  // maintenance / incident / inspection / manual documents.
+  RCA_TOP_K: z.coerce.number().int().positive().default(10),
+  RCA_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.35),
+
+  // Compliance Intelligence — SOP vs. regulation comparison.
+  COMPLIANCE_MAX_CHARS: z.coerce.number().int().positive().default(8000),
+  COMPLIANCE_MAX_CHUNKS: z.coerce.number().int().positive().default(40),
+  COMPLIANCE_REGULATION_CATEGORY: z.string().default('regulation'),
+
+  // Lessons Learned — evidence sampled for the AI summary.
+  LESSONS_TOP_K: z.coerce.number().int().positive().default(12),
+
+  // OCR fallback for scanned / image-only PDFs (only runs when no text is found)
+  OCR_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v !== 'false'),
+  OCR_LANGUAGE: z.string().default('eng'),
+  OCR_MAX_PAGES: z.coerce.number().int().positive().default(20),
+
+  // Knowledge graph entity/relationship extraction (MongoDB-backed, best-effort)
+  KG_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v !== 'false'),
+  KG_MAX_CHARS: z.coerce.number().int().positive().default(8000),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
